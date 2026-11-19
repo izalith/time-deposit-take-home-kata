@@ -2,6 +2,7 @@ package org.ikigaidigital
 
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.within
+import org.ikigaidigital.interest.InterestPolicy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -74,6 +75,19 @@ class TimeDepositCalculatorTest {
         assertThat(deposits.map { it.balance })
             .usingElementComparator { a, b -> if (Math.abs(a - b) < 1e-9) 0 else a.compareTo(b) }
             .containsExactly(1000.83, 1002.50, 1004.17, 1000.0)
+    }
+
+    @Test
+    fun `supports custom interest policies`() {
+        val flatFee = object : InterestPolicy {
+            override val planType = "gold"
+            override fun monthlyInterest(deposit: TimeDeposit) = 10.0
+        }
+        val deposit = TimeDeposit(1, "gold", 1000.0, 1)
+
+        TimeDepositCalculator(listOf(flatFee)).updateBalance(listOf(deposit))
+
+        assertThat(deposit.balance).isEqualTo(1010.0)
     }
 
     @Test
