@@ -1,0 +1,24 @@
+spring:
+  application:
+    name: time-deposit
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/timedeposits}
+    username: ${DB_USERNAME:timedeposit}
+    password: ${DB_PASSWORD:timedeposit}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+      # keep the camelCase table/column names from the requirements as they are
+      naming:
+        physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
+    properties:
+      hibernate:
+        globally_quoted_identifiers: true
+  flyway:
+    locations: classpath:db/migration,classpath:db/sample-data
+
+springdoc:
+  swagger-ui:
+    # serve the hand-written contract (the source of truth) instead of the generated one
+    url: /openapi.yaml
