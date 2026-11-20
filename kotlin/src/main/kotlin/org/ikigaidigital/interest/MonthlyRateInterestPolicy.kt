@@ -2,12 +2,6 @@ package org.ikigaidigital.interest
 
 import org.ikigaidigital.TimeDeposit
 
-/**
- * Template for plans paying a fixed yearly rate in monthly instalments.
- *
- * Applies the rule shared by all existing plans: no interest during the first [GRACE_PERIOD_DAYS] days.
- * Subclasses narrow down eligibility further via [isEligible].
- */
 abstract class MonthlyRateInterestPolicy(
     final override val planType: String,
     private val annualRate: Double,

@@ -7,7 +7,6 @@ import org.ikigaidigital.application.port.inbound.UpdateAllBalancesUseCase
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.RestController
 
-/** Implements the interface generated from the OpenAPI contract (src/main/resources/static/openapi.yaml). */
 @RestController
 class TimeDepositController(
     private val getAllTimeDeposits: GetAllTimeDepositsQuery,

@@ -13,7 +13,7 @@ internal object TimeDepositWebMapper {
         TimeDepositDto(
             id = details.deposit.id,
             planType = details.deposit.planType,
-            // the API exposes money as a decimal with cents, not as a binary Double
+            // Assumption: money is exposed as a decimal with cents rather than as a raw Double.
             balance = BigDecimal.valueOf(details.deposit.balance).setScale(2, RoundingMode.HALF_UP),
             days = details.deposit.days,
             withdrawals = details.withdrawals.map(::toDto),

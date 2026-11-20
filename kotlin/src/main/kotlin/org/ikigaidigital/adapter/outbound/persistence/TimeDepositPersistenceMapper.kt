@@ -6,12 +6,6 @@ import org.ikigaidigital.Withdrawal
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-/**
- * Balances are stored as DECIMAL(19,2) while the shared [TimeDeposit] class (which must not change)
- * uses Double. The conversion happens here, at the boundary. Interest is already rounded to cents by
- * the calculator, so rounding the balance to two decimals only removes binary floating point noise
- * (e.g. 1000.8299999999999 -> 1000.83).
- */
 internal object TimeDepositPersistenceMapper {
 
     fun toDomain(entity: TimeDepositEntity): TimeDeposit =
@@ -23,6 +17,8 @@ internal object TimeDepositPersistenceMapper {
             withdrawals = entity.withdrawals.map { Withdrawal(it.id, it.amount, it.date) },
         )
 
+    // Assumption: balances are stored as DECIMAL(19,2) while the shared TimeDeposit keeps Double.
+    // Interest is already rounded to cents, so rounding here only removes binary noise (1000.8299999999999 -> 1000.83).
     fun toStoredBalance(balance: Double): BigDecimal =
         BigDecimal.valueOf(balance).setScale(2, RoundingMode.HALF_UP)
 }

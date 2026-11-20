@@ -7,12 +7,6 @@ import org.ikigaidigital.interest.StudentInterestPolicy
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-/**
- * Applies one month of interest to time deposits.
- *
- * The interest rules live in [InterestPolicy] strategies; the calculator only selects the policy
- * by plan type and applies the rounding. The no-arg constructor keeps the original API intact.
- */
 class TimeDepositCalculator(policies: List<InterestPolicy> = DEFAULT_POLICIES) {
 
     private val policiesByPlanType: Map<String, InterestPolicy> = policies.associateBy { it.planType }
@@ -21,7 +15,7 @@ class TimeDepositCalculator(policies: List<InterestPolicy> = DEFAULT_POLICIES) {
         xs.forEach { deposit -> deposit.balance += roundToCents(monthlyInterest(deposit)) }
     }
 
-    // Unknown plan types earn no interest, as in the original implementation.
+    // Assumption: unknown plan types earn no interest, as in the original code.
     private fun monthlyInterest(deposit: TimeDeposit): Double =
         policiesByPlanType[deposit.planType]?.monthlyInterest(deposit) ?: 0.0
 

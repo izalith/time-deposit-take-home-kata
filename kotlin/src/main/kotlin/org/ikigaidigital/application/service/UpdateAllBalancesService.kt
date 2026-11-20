@@ -12,8 +12,8 @@ class UpdateAllBalancesService(
     private val repository: TimeDepositRepository,
 ) : UpdateAllBalancesUseCase {
 
-    // All deposits are updated in a single transaction: either every balance gets its interest or none.
-    // Loading everything at once is fine for the kata; a large portfolio would need batching.
+    // Assumptions: one call applies one month of interest (same as updateBalance) and does not advance `days`,
+    // which the original code does not do either. All balances are updated in one transaction: all or nothing.
     @Transactional
     override fun updateAllBalances() {
         val deposits = repository.findAll()

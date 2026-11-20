@@ -9,7 +9,6 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-      # keep the camelCase table/column names from the requirements as they are
       naming:
         physical-strategy: org.hibernate.boot.model.naming.PhysicalNamingStrategyStandardImpl
     properties:
@@ -20,5 +19,4 @@ spring:
 
 springdoc:
   swagger-ui:
-    # serve the hand-written contract (the source of truth) instead of the generated one
     url: /openapi.yaml

@@ -1,5 +1,3 @@
--- Demo data so the endpoints can be tried right away through Swagger UI.
--- Kept outside db/migration: it is only loaded where spring.flyway.locations includes db/sample-data.
 INSERT INTO "timeDeposits" ("id", "planType", "days", "balance")
 VALUES (1, 'basic', 45, 1234567.00),
        (2, 'basic', 20, 5000.00),

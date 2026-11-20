@@ -7,33 +7,24 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
-/**
- * Characterization tests: they pin down the current behaviour of [TimeDepositCalculator.updateBalance]
- * so that the refactoring can be verified to be behaviour-preserving.
- */
 class TimeDepositCalculatorTest {
 
     private val calculator = TimeDepositCalculator()
 
     @ParameterizedTest(name = "{0} plan, {1} days, balance {2} -> {3}")
     @CsvSource(
-        // grace period: no interest for the first 30 days for any plan
         "basic,    30,  1000.00, 1000.00",
         "student,  30,  1000.00, 1000.00",
         "premium,  30,  1000.00, 1000.00",
-        // basic: 1% yearly, paid monthly
         "basic,    31,  1000.00, 1000.83",
         "basic,    45,  1234567.00, 1235595.81",
         "basic,    3650, 1000.00, 1000.83",
-        // student: 3% yearly, no interest after 1 year
         "student,  31,  1000.00, 1002.50",
         "student,  365, 1000.00, 1002.50",
         "student,  366, 1000.00, 1000.00",
-        // premium: 5% yearly, interest starts after 45 days
         "premium,  45,  1000.00, 1000.00",
         "premium,  46,  1000.00, 1004.17",
         "premium,  400, 1000.00, 1004.17",
-        // unknown plans earn nothing
         "gold,     100, 1000.00, 1000.00",
         "BASIC,    100, 1000.00, 1000.00",
     )
@@ -47,9 +38,6 @@ class TimeDepositCalculatorTest {
 
     @Test
     fun `rounds interest half up to two decimals`() {
-        // 150.00 * 0.01 / 12 = 0.125 exactly in binary -> rounded half up to 0.13
-        // 1818.00 * 0.01 / 12 = 1.51499999... in binary (not 1.515) -> 1.51
-        // The interest is computed with doubles before rounding; this quirk is part of the current behaviour.
         val deposits = listOf(
             TimeDeposit(1, "basic", 150.00, 31),
             TimeDeposit(2, "basic", 1818.00, 31),
