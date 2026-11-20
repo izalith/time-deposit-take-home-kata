@@ -27,10 +27,8 @@ Project instructions loaded automatically by Claude Code when working in `kotlin
 - Package names must not contain Kotlin keywords (`in`, `out` broke the generator → `inbound`/`outbound`).
 
 ## Workflow
-- Few, focused commits (Conventional Commits); do not split work into many tiny commits. Build must pass at each commit.
-- Only Docker may be required locally: app via `docker compose up --build`, tests via `docker compose run --rm tests`.
+- Run: `mvn spring-boot:run` (profile `local`, in-memory H2). Tests: `mvn verify` (Testcontainers PostgreSQL, needs Docker).
 - Fetch library docs through the Context7 MCP server instead of relying on memory.
-- No explanatory comments: names must explain the code. Only exception: a comment justifying an assumption
-  (prefixed `Assumption:`), also listed in README.md.
-- Money: `BigDecimal` everywhere; `Double` only as input to the calculator via `TimeDeposit` (one conversion in the persistence mapper).
+- Money: `BigDecimal` everywhere; `Double` only as input to the calculator via `TimeDeposit` (one conversion in `TimeDepositRecord`).
+- No code comments. Assumptions are listed only in README.md ("Assumptions").
 - Balance update: batch = one transaction, `FOR UPDATE SKIP LOCKED`, update deposits one by one in code; once per deposit per month. GET stays paginated (`page`/`size`, response `{items, page, size, totalElements, totalPages}`).

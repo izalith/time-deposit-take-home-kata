@@ -16,8 +16,6 @@ spring:
         globally_quoted_identifiers: true
         jdbc:
           batch_size: 100
-  flyway:
-    locations: classpath:db/migration,classpath:db/sample-data
 
 time-deposits:
   balance-update:

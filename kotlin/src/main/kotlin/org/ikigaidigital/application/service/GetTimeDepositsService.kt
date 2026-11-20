@@ -11,7 +11,6 @@ class GetTimeDepositsService(
     private val repository: TimeDepositPageRepository,
 ) : GetTimeDepositsQuery {
 
-    // Assumption: out-of-range page parameters are clamped instead of rejected (input validation is out of scope).
     @Transactional(readOnly = true)
     override fun getTimeDeposits(page: Int, size: Int): TimeDepositPage =
         repository.findPage(page.coerceAtLeast(0), size.coerceIn(1, MAX_PAGE_SIZE))

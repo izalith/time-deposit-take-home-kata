@@ -19,13 +19,7 @@ class UpdateAllBalancesService(
     @Value("\${time-deposits.balance-update.batch-size}") private val batchSize: Int,
 ) : UpdateAllBalancesUseCase {
 
-    // Assumptions: interest is monthly, so it is applied at most once per deposit per calendar month (UTC);
-    // `days` is not advanced, as in the original code. Each batch is one transaction that locks its rows
-    // (FOR UPDATE SKIP LOCKED): concurrent requests split the deposits between them and never update one twice.
-    // An external scheduler calls this once a month; a missed month is not caught up, only the current one is credited.
     override fun updateAllBalances() {
-        // Assumption: plans are read on every run, so a rate change also applies to deposits opened earlier.
-        // That may contradict their contract terms; accepted as the intended behaviour.
         val calculator = TimeDepositCalculator(plans.findAll())
         val month = YearMonth.now(clock)
         do {

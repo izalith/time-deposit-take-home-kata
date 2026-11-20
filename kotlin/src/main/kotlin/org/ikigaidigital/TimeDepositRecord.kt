@@ -13,7 +13,5 @@ data class TimeDepositRecord(
     fun withMonthlyInterest(calculator: TimeDepositCalculator, month: YearMonth): TimeDepositRecord =
         copy(balance = balance + calculator.monthlyInterest(toTimeDeposit()), lastInterestMonth = month)
 
-    // Assumption: the shared TimeDeposit keeps Double, so this is the only BigDecimal -> Double conversion.
-    // It only feeds the interest calculation; balances are stored and returned as BigDecimal.
     private fun toTimeDeposit() = TimeDeposit(id, planType, balance.toDouble(), days)
 }
