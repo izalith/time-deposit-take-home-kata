@@ -17,7 +17,7 @@ Project instructions loaded automatically by Claude Code when working in `kotlin
 ## Architecture (hexagonal)
 - Domain (framework-free): `org.ikigaidigital` root + `org.ikigaidigital.interest`.
 - Application: `application.port.inbound` (use cases), `application.port.outbound` (repositories), `application.service`.
-- Adapters: `adapter.inbound.web` (implements generated `TimeDepositsApi`), `adapter.outbound.persistence` (JPA).
+- Adapters: `adapter.inbound.web` (implements generated `TimeDepositsApi`), `adapter.outbound.persistence` (JPA reads, JDBC batch writes).
 - Dependencies point inwards only. Domain never imports Spring/JPA.
 - New interest rule = new `InterestPolicy` implementation; do not add `if/else` on plan types to the calculator.
 
@@ -27,9 +27,10 @@ Project instructions loaded automatically by Claude Code when working in `kotlin
 - Package names must not contain Kotlin keywords (`in`, `out` broke the generator → `inbound`/`outbound`).
 
 ## Workflow
-- Small, atomic commits (Conventional Commits). Build must pass at each step.
+- Few, focused commits (Conventional Commits); do not split work into many tiny commits. Build must pass at each commit.
 - Only Docker may be required locally: app via `docker compose up --build`, tests via `docker compose run --rm tests`.
 - Fetch library docs through the Context7 MCP server instead of relying on memory.
 - No explanatory comments: names must explain the code. Only exception: a comment justifying an assumption
   (prefixed `Assumption:`), also listed in README.md.
-- Money: `BigDecimal` at the DB and API boundary; `Double` only inside the shared domain class.
+- Money: `BigDecimal` everywhere; `Double` only as input to the calculator via `TimeDeposit` (one conversion in the persistence mapper).
+- Balance update must stay idempotent (once per deposit per month) and batched; GET stays paginated (`page`/`size`, response `{items, page, size, totalElements, totalPages}`).

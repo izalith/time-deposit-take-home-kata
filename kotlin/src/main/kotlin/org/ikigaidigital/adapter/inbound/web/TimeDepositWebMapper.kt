@@ -1,21 +1,29 @@
 package org.ikigaidigital.adapter.inbound.web
 
 import org.ikigaidigital.TimeDepositDetails
+import org.ikigaidigital.TimeDepositPage
 import org.ikigaidigital.Withdrawal
 import org.ikigaidigital.adapter.inbound.web.model.TimeDeposit as TimeDepositDto
+import org.ikigaidigital.adapter.inbound.web.model.TimeDepositPage as TimeDepositPageDto
 import org.ikigaidigital.adapter.inbound.web.model.Withdrawal as WithdrawalDto
-import java.math.BigDecimal
-import java.math.RoundingMode
 
 internal object TimeDepositWebMapper {
 
-    fun toDto(details: TimeDepositDetails): TimeDepositDto =
+    fun toDto(page: TimeDepositPage): TimeDepositPageDto =
+        TimeDepositPageDto(
+            items = page.items.map(::toDto),
+            page = page.page,
+            propertySize = page.size,
+            totalElements = page.totalElements,
+            totalPages = page.totalPages,
+        )
+
+    private fun toDto(details: TimeDepositDetails): TimeDepositDto =
         TimeDepositDto(
-            id = details.deposit.id,
-            planType = details.deposit.planType,
-            // Assumption: money is exposed as a decimal with cents rather than as a raw Double.
-            balance = BigDecimal.valueOf(details.deposit.balance).setScale(2, RoundingMode.HALF_UP),
-            days = details.deposit.days,
+            id = details.id,
+            planType = details.planType,
+            balance = details.balance,
+            days = details.days,
             withdrawals = details.withdrawals.map(::toDto),
         )
 

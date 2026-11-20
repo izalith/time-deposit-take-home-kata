@@ -12,3 +12,6 @@ VALUES (1, 1, 1000.00, '2026-01-15'),
        (2, 1, 250.50, '2026-02-01'),
        (3, 6, 500.00, '2026-03-10')
 ON CONFLICT ("id") DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('"timeDeposits"', 'id'), (SELECT MAX("id") FROM "timeDeposits"));
+SELECT setval(pg_get_serial_sequence('"withdrawals"', 'id'), (SELECT MAX("id") FROM "withdrawals"));

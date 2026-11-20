@@ -1,7 +1,9 @@
 package org.ikigaidigital
 
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.within
+import org.ikigaidigital.interest.BasicInterestPolicy
 import org.ikigaidigital.interest.InterestPolicy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
@@ -50,6 +52,15 @@ class TimeDepositCalculatorTest {
     }
 
     @Test
+    fun `monthly interest is the amount updateBalance adds, in cents`() {
+        val deposit = TimeDeposit(1, "basic", 1818.00, 31)
+
+        assertThat(calculator.monthlyInterest(deposit)).isEqualTo("1.51")
+        assertThat(calculator.monthlyInterest(TimeDeposit(2, "basic", 1000.0, 30))).isEqualTo("0.00")
+        assertThat(deposit.balance).isEqualTo(1818.00)
+    }
+
+    @Test
     fun `updates every deposit in the list in place`() {
         val deposits = listOf(
             TimeDeposit(1, "basic", 1000.0, 31),
@@ -76,6 +87,13 @@ class TimeDepositCalculatorTest {
         TimeDepositCalculator(listOf(flatFee)).updateBalance(listOf(deposit))
 
         assertThat(deposit.balance).isEqualTo(1010.0)
+    }
+
+    @Test
+    fun `rejects two policies for the same plan type`() {
+        assertThatIllegalArgumentException().isThrownBy {
+            TimeDepositCalculator(TimeDepositCalculator.DEFAULT_POLICIES + BasicInterestPolicy())
+        }
     }
 
     @Test

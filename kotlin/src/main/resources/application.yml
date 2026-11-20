@@ -17,6 +17,6 @@ spring:
   flyway:
     locations: classpath:db/migration,classpath:db/sample-data
 
-springdoc:
-  swagger-ui:
-    url: /openapi.yaml
+time-deposits:
+  balance-update:
+    batch-size: 500

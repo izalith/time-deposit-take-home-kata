@@ -36,17 +36,22 @@ With a local JDK 17 + Maven the same works via `mvn verify`.
 The contract lives in [`src/main/resources/static/openapi.yaml`](src/main/resources/static/openapi.yaml)
 and is served at http://localhost:8080/openapi.yaml.
 
-1. Open **Swagger UI**: http://localhost:8080/swagger-ui.html
-2. **`GET /time-deposits`** → *Try it out* → *Execute*: returns all deposits with
-   `id`, `planType`, `balance`, `days`, `withdrawals`.
-3. **`POST /time-deposits/balance-updates`** → *Try it out* → *Execute*: applies one month of interest
-   to every deposit and persists it (`204 No Content`).
+1. Open **Swagger UI**: http://localhost:8080/swagger-ui.html (static page from the `swagger-ui` webjar that loads
+   `openapi.yaml`; no API docs are generated from code, so the app exposes only the two contract endpoints)
+2. **`GET /time-deposits`** → *Try it out* → *Execute*: returns one page
+   `{items, page, size, totalElements, totalPages}`; `items` are deposits ordered by id with
+   `id`, `planType`, `balance`, `days`, `withdrawals`. Parameters: `page` (zero-based, default 0) and
+   `size` (default 100, max 1000).
+3. **`POST /time-deposits/balance-updates`** → *Try it out* → *Execute*: applies this month's interest
+   to every deposit that has not received it yet (`204 No Content`). Calling it again in the same month
+   changes nothing.
 4. Run `GET /time-deposits` again to see the new balances.
 
 Same with curl:
 
 ```bash
-curl http://localhost:8080/time-deposits
+curl "http://localhost:8080/time-deposits?page=0&size=2"
+curl "http://localhost:8080/time-deposits?page=1&size=2"
 curl -X POST http://localhost:8080/time-deposits/balance-updates
 ```
 
@@ -57,11 +62,11 @@ curl -X POST http://localhost:8080/time-deposits/balance-updates
 ```
 adapter.inbound.web            REST: implements TimeDepositsApi generated from openapi.yaml
         │
-application.port.inbound       GetAllTimeDepositsQuery, UpdateAllBalancesUseCase
-application.service            use case implementations (transaction boundary)
-application.port.outbound      TimeDepositRepository (write), TimeDepositDetailsRepository (read)
+application.port.inbound       GetTimeDepositsQuery, UpdateAllBalancesUseCase
+application.service            use case implementations
+application.port.outbound      TimeDepositRepository
         │
-adapter.outbound.persistence   JPA entities + Spring Data, implements the outbound ports
+adapter.outbound.persistence   Spring Data JPA reads, JDBC batch writes; implements the outbound port
 
 domain (framework-free)        TimeDeposit, TimeDepositCalculator, Withdrawal, TimeDepositDetails,
                                interest.* (InterestPolicy strategies)
@@ -75,9 +80,11 @@ breaking change.
 - `InterestPolicy` — one strategy per plan type, picked by `TimeDepositCalculator` via a map lookup.
 - `MonthlyRateInterestPolicy` — template for "yearly rate paid monthly"; holds the 30-day grace period
   shared by all existing plans. `Basic`/`Student`/`Premium` only declare rate and extra eligibility.
-- Adding a plan or a more complex rule (e.g. withdrawal-based) = a new `InterestPolicy`, no change to the
-  calculator (Open/Closed). The calculator also accepts a custom policy list via its constructor; the
-  no-arg constructor keeps the original API.
+- Adding a plan or a different rule for a plan = a new `InterestPolicy`, no change to the calculator
+  (Open/Closed). Duplicate policies for one plan type are rejected. The calculator also accepts a custom
+  policy list via its constructor; the no-arg constructor keeps the original API.
+- `monthlyInterest(deposit): BigDecimal` exposes the rounded interest; `updateBalance` adds exactly this
+  amount, so its behaviour is unchanged.
 - `updateBalance` signature and behaviour are unchanged. This is proven by characterization tests written
   **before** the refactoring (`TimeDepositCalculatorTest`), including the floating-point rounding quirk
   (`1818.00 * 0.01 / 12` rounds to `1.51`, not `1.52`, because the interest is computed in `Double`).
@@ -85,25 +92,39 @@ breaking change.
 ### Database
 
 Flyway migration `V1__create_time_deposit_tables.sql` creates `timeDeposits` and `withdrawals` with the
-column names from the requirements (camelCase, quoted identifiers). Hibernate runs with `ddl-auto: validate`.
+column names from the requirements (camelCase, quoted identifiers). `V2` adds `lastInterestMonth`
+(see idempotency below). Hibernate runs with `ddl-auto: validate`.
+
+### Scalability and idempotency
+
+- **GET**: page-based pagination ordered by the primary key; a page costs three queries regardless of
+  its size: the page, the total count and the page's withdrawals (one `IN` query, no N+1).
+- **POST**: deposits are processed in batches (`time-deposits.balance-update.batch-size`, default 500),
+  each batch in its own short transaction and written with one JDBC batch of conditional updates:
+  `balance = balance + interest, lastInterestMonth = :month WHERE lastInterestMonth < :month`.
+  The condition makes the update idempotent: repeated, parallel or resumed (after a failure) calls
+  credit each deposit at most once per month. Covered by integration tests, including parallel calls.
 
 ### Assumptions
 
 Each assumption is also justified in a comment next to the code it affects.
 
 - **Database**: the requirements do not name one; PostgreSQL is used, matching the Testcontainers setup.
-- **Update endpoint** is `POST /time-deposits/balance-updates`: it is not idempotent (every call adds a
-  month of interest), so `PUT`/`PATCH` would be misleading. It returns `204`.
-- **One call = one month of interest**, matching `updateBalance`. `days` is not advanced by the update —
-  the original calculator does not do it and the requirements do not ask for it.
+- **Update endpoint** is `POST /time-deposits/balance-updates` (it triggers a run rather than replacing a
+  resource) and returns `204`.
+- **Interest is monthly**, so it is applied at most once per deposit per calendar month (UTC); the month is
+  stored in `lastInterestMonth`. `days` is not advanced by the update — the original calculator does not do
+  it and the requirements do not ask for it.
+- **Pagination**: GET returns a page (default 100, max 1000; out-of-range `page`/`size` are clamped) to keep
+  the response bounded, with paging metadata next to `items`; each item has exactly the required schema.
 - **Unknown plan types** earn no interest, as in the original implementation.
 - **Student plan "no interest after 1 year"** = from day 366 on, as in the original implementation.
-- **Money**: stored as `DECIMAL(19,2)` and exposed as JSON numbers with two decimals. The shared
-  `TimeDeposit` keeps `Double`; conversion happens in the adapters, rounding to cents removes binary noise
-  (e.g. `1000.8299999999999` → `1000.83`).
+- **Money**: `BigDecimal` everywhere outside the shared `TimeDeposit`, stored as `DECIMAL(19,2)`. The only
+  `Double` conversion is `BigDecimal → TimeDeposit` as input to the interest calculation; the calculator
+  returns the interest as `BigDecimal` cents and the balance is updated in SQL, so stored and returned
+  balances never go through `Double` and keep full precision (tested with `90071992547409.93`).
 - **Withdrawals** are read-only data for the GET endpoint; they do not affect interest (not required).
   They are kept outside `TimeDeposit` (read model `TimeDepositDetails`) so the shared class is unchanged.
-- The whole balance update runs in one transaction (all or nothing).
 
 ## AI-assisted development
 
@@ -133,7 +154,7 @@ Prompt used to start: *"read the readme and do the assignment, it must be in Kot
    Testcontainers tests and a manual smoke test (`docker compose up` + curl + Swagger UI).
 5. Review feedback applied: comments only where they justify an assumption; only Docker is needed to
    run the app and the tests locally.
-6. Atomic commits per step (see `git log`).
+6. Commits kept few and focused (see `git log`).
 
 ### What was AI-assisted and why
 
