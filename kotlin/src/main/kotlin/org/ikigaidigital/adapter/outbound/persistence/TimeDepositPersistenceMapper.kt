@@ -1,15 +1,20 @@
 package org.ikigaidigital.adapter.outbound.persistence
 
-import org.ikigaidigital.TimeDeposit
 import org.ikigaidigital.TimeDepositDetails
+import org.ikigaidigital.TimeDepositRecord
 import org.ikigaidigital.Withdrawal
+import java.time.YearMonth
 
 internal object TimeDepositPersistenceMapper {
 
-    // Assumption: the shared TimeDeposit keeps Double, so this is the only BigDecimal -> Double conversion.
-    // It only feeds the interest calculation; stored and returned balances never go through Double.
-    fun toDomain(entity: TimeDepositEntity): TimeDeposit =
-        TimeDeposit(entity.id, entity.planType, entity.balance.toDouble(), entity.days)
+    fun toRecord(entity: TimeDepositEntity): TimeDepositRecord =
+        TimeDepositRecord(
+            id = entity.id,
+            planType = entity.planType,
+            days = entity.days,
+            balance = entity.balance,
+            lastInterestMonth = entity.lastInterestMonth?.let(YearMonth::from),
+        )
 
     fun toDetails(entity: TimeDepositEntity, withdrawals: List<WithdrawalEntity>): TimeDepositDetails =
         TimeDepositDetails(

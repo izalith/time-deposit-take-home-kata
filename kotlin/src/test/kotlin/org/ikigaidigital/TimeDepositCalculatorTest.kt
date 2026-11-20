@@ -3,15 +3,15 @@ package org.ikigaidigital
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatIllegalArgumentException
 import org.assertj.core.api.Assertions.within
-import org.ikigaidigital.interest.BasicInterestPolicy
 import org.ikigaidigital.interest.InterestPolicy
+import org.ikigaidigital.interest.MonthlyRateInterestPolicy
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
 
 class TimeDepositCalculatorTest {
 
-    private val calculator = TimeDepositCalculator()
+    private val calculator = TimeDepositCalculator(ORIGINAL_INTEREST_POLICIES)
 
     @ParameterizedTest(name = "{0} plan, {1} days, balance {2} -> {3}")
     @CsvSource(
@@ -92,7 +92,7 @@ class TimeDepositCalculatorTest {
     @Test
     fun `rejects two policies for the same plan type`() {
         assertThatIllegalArgumentException().isThrownBy {
-            TimeDepositCalculator(TimeDepositCalculator.DEFAULT_POLICIES + BasicInterestPolicy())
+            TimeDepositCalculator(ORIGINAL_INTEREST_POLICIES + MonthlyRateInterestPolicy("basic", 0.02, 30, null))
         }
     }
 

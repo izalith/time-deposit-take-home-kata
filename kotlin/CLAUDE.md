@@ -17,9 +17,9 @@ Project instructions loaded automatically by Claude Code when working in `kotlin
 ## Architecture (hexagonal)
 - Domain (framework-free): `org.ikigaidigital` root + `org.ikigaidigital.interest`.
 - Application: `application.port.inbound` (use cases), `application.port.outbound` (repositories), `application.service`.
-- Adapters: `adapter.inbound.web` (implements generated `TimeDepositsApi`), `adapter.outbound.persistence` (JPA reads, JDBC batch writes).
+- Adapters: `adapter.inbound.web` (implements generated `TimeDepositsApi`), `adapter.outbound.persistence` (Spring Data JPA).
 - Dependencies point inwards only. Domain never imports Spring/JPA.
-- New interest rule = new `InterestPolicy` implementation; do not add `if/else` on plan types to the calculator.
+- Interest plans live in the `interestPlans` table. A rule of a new shape = new `InterestPolicy`; no `if/else` on plan types.
 
 ## Contract-first
 - Edit `src/main/resources/static/openapi.yaml` first; the API interface and DTOs are generated
@@ -33,4 +33,4 @@ Project instructions loaded automatically by Claude Code when working in `kotlin
 - No explanatory comments: names must explain the code. Only exception: a comment justifying an assumption
   (prefixed `Assumption:`), also listed in README.md.
 - Money: `BigDecimal` everywhere; `Double` only as input to the calculator via `TimeDeposit` (one conversion in the persistence mapper).
-- Balance update must stay idempotent (once per deposit per month) and batched; GET stays paginated (`page`/`size`, response `{items, page, size, totalElements, totalPages}`).
+- Balance update: batch = one transaction, `FOR UPDATE SKIP LOCKED`, update deposits one by one in code; once per deposit per month. GET stays paginated (`page`/`size`, response `{items, page, size, totalElements, totalPages}`).

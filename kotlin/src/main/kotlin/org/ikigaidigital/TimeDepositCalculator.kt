@@ -1,13 +1,12 @@
 package org.ikigaidigital
 
-import org.ikigaidigital.interest.BasicInterestPolicy
 import org.ikigaidigital.interest.InterestPolicy
-import org.ikigaidigital.interest.PremiumInterestPolicy
-import org.ikigaidigital.interest.StudentInterestPolicy
 import java.math.BigDecimal
 import java.math.RoundingMode
 
-class TimeDepositCalculator(policies: List<InterestPolicy> = DEFAULT_POLICIES) {
+// Assumption: the plans come from the "interestPlans" table, so the original no-arg constructor is gone and callers
+// pass the policies. The requirements only protect TimeDeposit and the updateBalance signature.
+class TimeDepositCalculator(policies: List<InterestPolicy>) {
 
     private val policiesByPlanType: Map<String, InterestPolicy> = policies.associateBy { it.planType }
 
@@ -23,12 +22,4 @@ class TimeDepositCalculator(policies: List<InterestPolicy> = DEFAULT_POLICIES) {
     fun monthlyInterest(deposit: TimeDeposit): BigDecimal =
         BigDecimal(policiesByPlanType[deposit.planType]?.monthlyInterest(deposit) ?: 0.0)
             .setScale(2, RoundingMode.HALF_UP)
-
-    companion object {
-        val DEFAULT_POLICIES: List<InterestPolicy> = listOf(
-            BasicInterestPolicy(),
-            StudentInterestPolicy(),
-            PremiumInterestPolicy(),
-        )
-    }
 }

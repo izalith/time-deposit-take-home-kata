@@ -20,7 +20,7 @@ class TimeDepositEntity(
     val days: Int,
 
     @Column(nullable = false, precision = 19, scale = 2)
-    val balance: BigDecimal,
+    var balance: BigDecimal,
 
-    val lastInterestMonth: LocalDate?,
+    var lastInterestMonth: LocalDate?,
 )

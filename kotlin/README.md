@@ -64,25 +64,26 @@ adapter.inbound.web            REST: implements TimeDepositsApi generated from o
         │
 application.port.inbound       GetTimeDepositsQuery, UpdateAllBalancesUseCase
 application.service            use case implementations
-application.port.outbound      TimeDepositRepository
+application.port.outbound      TimeDepositRepository (balance update), TimeDepositPageRepository (GET),
+                               InterestPlanRepository (plans)
         │
-adapter.outbound.persistence   Spring Data JPA reads, JDBC batch writes; implements the outbound port
+adapter.outbound.persistence   Spring Data JPA, implements the outbound ports
 
-domain (framework-free)        TimeDeposit, TimeDepositCalculator, Withdrawal, TimeDepositDetails,
-                               interest.* (InterestPolicy strategies)
+domain (framework-free)        TimeDeposit, TimeDepositCalculator, TimeDepositRecord, TimeDepositDetails,
+                               TimeDepositPage, Withdrawal, interest.* (InterestPolicy strategies)
 ```
 
 The domain stays in the original `org.ikigaidigital` package because moving `TimeDeposit` would be a
 breaking change.
 
-### Interest calculation (Strategy + Template Method)
+### Interest calculation (Strategy)
 
 - `InterestPolicy` — one strategy per plan type, picked by `TimeDepositCalculator` via a map lookup.
-- `MonthlyRateInterestPolicy` — template for "yearly rate paid monthly"; holds the 30-day grace period
-  shared by all existing plans. `Basic`/`Student`/`Premium` only declare rate and extra eligibility.
-- Adding a plan or a different rule for a plan = a new `InterestPolicy`, no change to the calculator
-  (Open/Closed). Duplicate policies for one plan type are rejected. The calculator also accepts a custom
-  policy list via its constructor; the no-arg constructor keeps the original API.
+- `MonthlyRateInterestPolicy` — "yearly rate paid monthly", configured by rate and day limits. The plans
+  (`basic`, `student`, `premium`) are rows of the `interestPlans` table and are read on every balance
+  update, so a new plan or a rate change is a data change.
+- A rule of a different shape = a new `InterestPolicy`, no change to the calculator (Open/Closed).
+  Duplicate policies for one plan type are rejected. The calculator takes the policy list via its constructor.
 - `monthlyInterest(deposit): BigDecimal` exposes the rounded interest; `updateBalance` adds exactly this
   amount, so its behaviour is unchanged.
 - `updateBalance` signature and behaviour are unchanged. This is proven by characterization tests written
@@ -93,38 +94,64 @@ breaking change.
 
 Flyway migration `V1__create_time_deposit_tables.sql` creates `timeDeposits` and `withdrawals` with the
 column names from the requirements (camelCase, quoted identifiers). `V2` adds `lastInterestMonth`
-(see idempotency below). Hibernate runs with `ddl-auto: validate`.
+(see idempotency below), `V3` creates `interestPlans` with the three plans. Hibernate runs with `ddl-auto: validate`.
 
 ### Scalability and idempotency
 
 - **GET**: page-based pagination ordered by the primary key; a page costs three queries regardless of
   its size: the page, the total count and the page's withdrawals (one `IN` query, no N+1).
-- **POST**: deposits are processed in batches (`time-deposits.balance-update.batch-size`, default 500),
-  each batch in its own short transaction and written with one JDBC batch of conditional updates:
-  `balance = balance + interest, lastInterestMonth = :month WHERE lastInterestMonth < :month`.
-  The condition makes the update idempotent: repeated, parallel or resumed (after a failure) calls
-  credit each deposit at most once per month. Covered by integration tests, including parallel calls.
+- **POST**: batches of `time-deposits.balance-update.batch-size` (default 500). Each batch is one
+  transaction: select deposits not updated this month `FOR UPDATE SKIP LOCKED`, add the interest to each
+  one in code, save them. Repeats until no deposit is left.
+- **Two identical requests**: `SKIP LOCKED` makes them take different rows, so they share the work instead
+  of waiting; `lastInterestMonth` stops a deposit from being picked again after its batch committed. Each
+  deposit gets the interest once; a repeated call in the same month changes nothing; a failed batch rolls
+  back and is picked up by the next call. Covered by integration tests, including parallel calls.
 
 ### Assumptions
 
-Each assumption is also justified in a comment next to the code it affects.
+All assumptions in one place. Each one is also justified in an `Assumption:` comment next to the code it affects.
 
+**Data and storage**
 - **Database**: the requirements do not name one; PostgreSQL is used, matching the Testcontainers setup.
-- **Update endpoint** is `POST /time-deposits/balance-updates` (it triggers a run rather than replacing a
-  resource) and returns `204`.
-- **Interest is monthly**, so it is applied at most once per deposit per calendar month (UTC); the month is
-  stored in `lastInterestMonth`. `days` is not advanced by the update — the original calculator does not do
-  it and the requirements do not ask for it.
-- **Pagination**: GET returns a page (default 100, max 1000; out-of-range `page`/`size` are clamped) to keep
-  the response bounded, with paging metadata next to `items`; each item has exactly the required schema.
-- **Unknown plan types** earn no interest, as in the original implementation.
-- **Student plan "no interest after 1 year"** = from day 366 on, as in the original implementation.
+- **Table and column names** follow the requirements literally (camelCase), hence quoted identifiers.
+- **"Store all time deposit plans in a database"** covers the plan rules: rates and day limits live in the
+  `interestPlans` table and are read on every balance update.
+- **No plan defaults in code**: the original no-arg `TimeDepositCalculator()` is removed, callers pass the
+  policies (the application builds them from `interestPlans`). The requirements only protect `TimeDeposit`
+  and the `updateBalance` signature; `updateBalance` behaviour with the original rules is unchanged.
+- **Rate changes apply to existing deposits**: plans are read on every balance update, so changing a rate in
+  `interestPlans` also changes the interest of deposits opened before the change. This may contradict the
+  terms those deposits were opened with; assumed acceptable. Fixing the terms per deposit would need the
+  rate (or a plan version) stored on the deposit.
 - **Money**: `BigDecimal` everywhere outside the shared `TimeDeposit`, stored as `DECIMAL(19,2)`. The only
   `Double` conversion is `BigDecimal → TimeDeposit` as input to the interest calculation; the calculator
-  returns the interest as `BigDecimal` cents and the balance is updated in SQL, so stored and returned
+  returns the interest as `BigDecimal` cents that is added to the `BigDecimal` balance, so stored and returned
   balances never go through `Double` and keep full precision (tested with `90071992547409.93`).
 - **Withdrawals** are read-only data for the GET endpoint; they do not affect interest (not required).
   They are kept outside `TimeDeposit` (read model `TimeDepositDetails`) so the shared class is unchanged.
+
+**Interest rules**
+- **Unknown plan types** earn no interest, as in the original implementation.
+- **Student plan "no interest after 1 year"** = from day 366 on, as in the original implementation.
+- **Interest is monthly**: applied at most once per deposit per calendar month (UTC), tracked in
+  `lastInterestMonth`.
+- **`days` is not advanced** by the update — the original calculator does not do it and the requirements do
+  not ask for it.
+
+**Balance update endpoint**
+- `POST /time-deposits/balance-updates` (it triggers a run rather than replacing a resource), returns `204`.
+- **It must be called once a month by an external scheduler** (cron, CI job, etc.). A missed month is not
+  caught up: the next call credits only the current month, the interest of the skipped month is lost.
+  Catching up would need `days` to move with time, which the current model does not do.
+- **A deposit without history** (`lastInterestMonth` is empty) gets only the current month's interest.
+- **Concurrent calls** are safe: each batch locks its rows with `FOR UPDATE SKIP LOCKED`, so parallel calls
+  split the deposits, and `lastInterestMonth` keeps each deposit from being credited twice in a month.
+
+**GET endpoint**
+- **Pagination**: GET returns a page (default 100, max 1000) with paging metadata next to `items`; each item
+  has exactly the required schema. Out-of-range `page`/`size` are clamped instead of rejected (input
+  validation is out of scope).
 
 ## AI-assisted development
 

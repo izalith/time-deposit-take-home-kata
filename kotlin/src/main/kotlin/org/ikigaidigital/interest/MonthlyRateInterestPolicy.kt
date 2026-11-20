@@ -2,22 +2,20 @@ package org.ikigaidigital.interest
 
 import org.ikigaidigital.TimeDeposit
 
-abstract class MonthlyRateInterestPolicy(
-    final override val planType: String,
+class MonthlyRateInterestPolicy(
+    override val planType: String,
     private val annualRate: Double,
+    private val interestStartsAfterDays: Int,
+    private val interestEndsAfterDays: Int?,
 ) : InterestPolicy {
 
-    final override fun monthlyInterest(deposit: TimeDeposit): Double =
-        if (deposit.days > GRACE_PERIOD_DAYS && isEligible(deposit)) {
-            deposit.balance * annualRate / MONTHS_PER_YEAR
-        } else {
-            0.0
-        }
+    override fun monthlyInterest(deposit: TimeDeposit): Double =
+        if (isEligible(deposit.days)) deposit.balance * annualRate / MONTHS_PER_YEAR else 0.0
 
-    protected open fun isEligible(deposit: TimeDeposit): Boolean = true
+    private fun isEligible(days: Int): Boolean =
+        days > interestStartsAfterDays && (interestEndsAfterDays == null || days <= interestEndsAfterDays)
 
-    companion object {
-        const val GRACE_PERIOD_DAYS = 30
-        private const val MONTHS_PER_YEAR = 12
+    private companion object {
+        const val MONTHS_PER_YEAR = 12
     }
 }

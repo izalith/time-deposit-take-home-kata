@@ -35,6 +35,15 @@ class TimeDepositApiIntegrationTest(
     @BeforeEach
     fun setUp() {
         setNow("2026-11-20T10:00:00Z")
+        jdbc.execute("DELETE FROM \"interestPlans\"")
+        jdbc.update(
+            """
+            INSERT INTO "interestPlans" ("planType", "annualRate", "interestStartsAfterDays", "interestEndsAfterDays") VALUES
+              ('basic', 0.0100, 30, NULL),
+              ('student', 0.0300, 30, 365),
+              ('premium', 0.0500, 45, NULL)
+            """
+        )
         jdbc.execute("DELETE FROM \"withdrawals\"")
         jdbc.execute("DELETE FROM \"timeDeposits\"")
         jdbc.update(
@@ -138,6 +147,15 @@ class TimeDepositApiIntegrationTest(
         postBalanceUpdate()
 
         assertThat(storedBalances()[2]).isEqualTo("1008.35")
+    }
+
+    @Test
+    fun `balance update uses the interest plans stored in the database`() {
+        jdbc.update("UPDATE \"interestPlans\" SET \"annualRate\" = 0.1200 WHERE \"planType\" = 'basic'")
+
+        postBalanceUpdate()
+
+        assertThat(storedBalances()[0]).isEqualTo("1246912.67")
     }
 
     @Test

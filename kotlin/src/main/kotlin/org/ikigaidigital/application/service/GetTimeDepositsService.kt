@@ -2,13 +2,13 @@ package org.ikigaidigital.application.service
 
 import org.ikigaidigital.TimeDepositPage
 import org.ikigaidigital.application.port.inbound.GetTimeDepositsQuery
-import org.ikigaidigital.application.port.outbound.TimeDepositRepository
+import org.ikigaidigital.application.port.outbound.TimeDepositPageRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class GetTimeDepositsService(
-    private val repository: TimeDepositRepository,
+    private val repository: TimeDepositPageRepository,
 ) : GetTimeDepositsQuery {
 
     // Assumption: out-of-range page parameters are clamped instead of rejected (input validation is out of scope).
